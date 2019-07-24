@@ -1,10 +1,14 @@
 package gate;
 
+import gate.api.CameraAPI;
+import gate.api.DisplayAPI;
+import gate.api.LightAPI;
+import gate.api.SensorAPI;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
-import simulator.Broker;
+import broker.Broker;
 
 import java.net.ConnectException;
 import java.util.Date;
@@ -15,37 +19,49 @@ public class Gate implements Runnable {
 
     private static final Logger logger = LogManager.getLogger("Gate");
 
-    int id = 0;
-    int type;
-    int nLane = 1;
+    private int id = 0;
+    private int type;
+    private int nLane = 1;
 
-    int counter;
-    float totalToll;
+    private int counter;
+    private float totalToll;
 
-    SensorAPI sensorAPI = new SensorAPI(this);
-    CameraAPI cameraAPI = new CameraAPI();
-    LightAPI lightAPI = new LightAPI();
-    DisplayAPI displayAPI = new DisplayAPI();
+    private Lane[] lanes = new Lane[1];
+    private SensorAPI sensorAPI = new SensorAPI(this);
+    private CameraAPI cameraAPI = new CameraAPI();
+    private LightAPI lightAPI = new LightAPI();
+    private DisplayAPI displayAPI = new DisplayAPI();
 
-    Broker broker;
+    private BlockingQueue<JSONObject> sensorInputQueue = new LinkedBlockingQueue<JSONObject>();
+    private BlockingQueue<JSONObject> respQueue = new LinkedBlockingQueue<JSONObject>();
+    private Thread sensorInputProcessor = new SensorInputProcessor("gate-" + id + "-sensor-input-processor", this);
+    private Thread responseProcessor = new ResponseProcessor("gate-" + id + "-response-processor", this);
 
-    BlockingQueue<Integer> frSensor = new LinkedBlockingQueue<Integer>();
-    BlockingQueue<JSONObject> frServer = new LinkedBlockingQueue<JSONObject>();
+    private Broker broker;
 
     public Gate(int id, int type) {
         this.id = id;
         this.type = type;
         counter = 0;
         totalToll = 0f;
+        lanes[0] = new Lane(1, this);
     }
 
     public Gate(int id, int type, int nLane) {
         this(id, type);
         this.nLane = nLane;
+        lanes = new Lane[nLane];
+        for (int i = 0; i < nLane; i++) {
+            lanes[i] = new Lane(i+1, this);
+        }
     }
 
     public int getGateId() {
         return id;
+    }
+
+    public int getGateType() {
+        return type;
     }
 
     public int getCounter() {
@@ -54,6 +70,14 @@ public class Gate implements Runnable {
 
     public float getTotalToll() {
         return totalToll;
+    }
+
+    public synchronized void addToTotalToll(float toll) {
+        totalToll += toll;
+    }
+
+    public Lane[] getLanes() {
+        return lanes;
     }
 
     public SensorAPI getSensorAPI() {
@@ -72,93 +96,75 @@ public class Gate implements Runnable {
         return displayAPI;
     }
 
+    public void setBroker(Broker broker) {
+        this.broker = broker;
+    }
+
+    public BlockingQueue<JSONObject> getSensorInputQueue() {
+        return sensorInputQueue;
+    }
+
+    public BlockingQueue<JSONObject> getRespQueue() {
+        return respQueue;
+    }
+
     @Override
     public String toString() {
         return "(id: " + id + ", type: " + type + ", nLane: " + nLane + ")";
     }
 
-    public void connectBroker(Broker broker) {
-        this.broker = broker;
-    }
-
-    public void receiveFrSensor(int ezpayId) {
-        frSensor.offer(ezpayId);
+    public void receiveFrSensor(JSONObject sensorMsg) {
+        sensorInputQueue.offer(sensorMsg);
         counter++;
+        synchronized (sensorInputProcessor) {
+            sensorInputProcessor.notify();
+        }
     }
 
     public void receiveFrServer(JSONObject resp) {
-        frServer.offer(resp);
+        respQueue.offer(resp);
+        synchronized (responseProcessor) {
+            responseProcessor.notify();
+        }
     }
 
-    // implementation
-    public void run() {
-        logger.info("gate-" + id + "  starts >>>>");
-        // to server processor
-        new Thread("gate-" + id + "-frSensor") {
-            @Override
-            public void run() {
-                logger.info("gate-" + id + "-frSensor starts >>>>");
-                while (true) {
-                    if (!frSensor.isEmpty()) {
-                        int ezpayId = frSensor.poll();
-                        logger.trace("frSensor poll: " + ezpayId);
-                        boolean authorized = (ezpayId > 0);
-
-                        // create msg
-                        JSONObject req = new JSONObject();
-                        try {
-                            req.put("gateId", id);
-                            req.put("authorized", authorized);
-                            if (authorized) {
-                                lightAPI.lightGreen();
-                                req.put("ezpayId", ezpayId);
-                            } else {
-                                lightAPI.lightYellow();
-                                req.put("vehicleId", cameraAPI.takePicture());
-                            }
-                            req.put("timestamp", new Date());
-                            sendToServer(req);
-                        } catch (JSONException ex) {
-                            ex.printStackTrace();
-                        }
-                    }
-                }
-            }
-        }.start();
-
-        // from server processor
-        new Thread("gate-" + id + "-frServer") {
-            @Override
-            public void run() {
-                logger.info("gate-" + id + "-frServer starts >>>>");
-                while (true) {
-                    if (!frServer.isEmpty()) {
-                        JSONObject resp = frServer.poll();
-                        logger.trace("frServer poll: " +resp);
-                        try {
-                            float toll = (float)resp.getDouble("toll");
-                            totalToll += toll;
-                            // TODO: different lanes
-                            displayAPI.display(toll);
-                        } catch (JSONException ex) {
-                            ex.printStackTrace();
-                        }
-                    }
-                }
-            }
-        }.start();
-
-    }
-
-    private void sendToServer(JSONObject req) {
+    public void sendToServer(JSONObject req) {
+        logger.trace("start sending to server >>>>");
         try {
             if (broker == null) {
                 throw new ConnectException("No connection to broker");
             }
             broker.sendToServer(req);
+            logger.trace("finish sending to server <<<<");
         } catch (ConnectException ex) {
             ex.printStackTrace();
         }
+    }
 
+    public String takePicture(int laneId) {
+        return cameraAPI.takePicture(laneId);
+    }
+
+    public void display(int laneId, float toll) {
+        displayAPI.display(laneId, toll);
+    }
+
+    public void lightGreen(int laneId) {
+        lightAPI.lightGreen(laneId);
+    }
+
+    public void lightYellow(int laneId) {
+        lightAPI.lightYellow(laneId);
+    }
+
+    // implementation
+    public void run() {
+        logger.info("gate-" + id + "  starts >>>>");
+
+        // sensor input processor
+        sensorInputProcessor.start();
+
+        // response processor
+        responseProcessor.start();
     }
 }

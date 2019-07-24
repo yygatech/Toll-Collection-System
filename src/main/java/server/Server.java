@@ -2,33 +2,53 @@ package server;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONException;
 import org.json.JSONObject;
-import simulator.Broker;
+import broker.Broker;
+import server.model.TransTableModel;
+import server.view.Monitor;
 
 import java.net.ConnectException;
-import java.util.Date;
+import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class Server implements Runnable {
     private static final Logger logger = LogManager.getLogger("Server");
+    private static final Random rand = new Random();
 
-    int id = 0;
+    private int id = 0;
+    private int nGate = 0;
 
-    int counter = 0;
-    float totalToll = 0;
+    private int counter = 0;
+    private float totalToll = 0;
 
-    Broker broker;
+    //    final Transactions transactions = new Transactions(100, this);
+    private final Monitor monitor = new Monitor();
+    private final TransTableModel transTableModel = monitor.getTransTableModel();
 
-    BlockingQueue<JSONObject> frGate = new LinkedBlockingQueue<JSONObject>();
+    private BlockingQueue<JSONObject> reqQueue = new LinkedBlockingQueue<JSONObject>();
+    private Thread requestProcessorThread = new RequestProcessor("server-request-processor", this);
+
+    private Broker broker;
 
     public Server(int id) {
         this.id = id;
     }
 
+//    public Transactions getTransactions() {
+//        return transactions;
+//    }
+
     public int getServerId() {
         return id;
+    }
+
+    public int getnGate() {
+        return nGate;
+    }
+
+    public void setnGate(int nGate) {
+        this.nGate = nGate;
     }
 
     public int getCounter() {
@@ -39,79 +59,56 @@ public class Server implements Runnable {
         return totalToll;
     }
 
+    public synchronized void addToTotalToll(float toll) {
+        totalToll += toll;
+    }
+
+    public void setBroker(Broker broker) {
+        this.broker = broker;
+    }
+
+    public Broker getBroker() {
+        return broker;
+    }
+
+    public BlockingQueue<JSONObject> getReqQueue() {
+        return reqQueue;
+    }
+
     @Override
     public String toString() {
         return "(" + id + ")";
     }
 
-    public void connectBroker(Broker broker) {
-        this.broker = broker;
-    }
-
     public void receiveFrGate(JSONObject msg) {
-        frGate.offer(msg);
+        reqQueue.offer(msg);
+        synchronized (requestProcessorThread) {
+            requestProcessorThread.notify();
+        }
         counter++;
     }
 
-    // implementation
-    public void run() {
-        logger.info("server starts >>>>");
-        new Thread("server-processor") {
-            @Override
-            public void run() {
-                logger.info("server-processor starts >>>>");
-                while (true) {
-                    if (!frGate.isEmpty()) {
-                        JSONObject req = frGate.poll();
-                        logger.trace("frGate poll: " + req);
-                        try {
-                            int gateId = req.getInt("gateId");
-                            boolean authorized = req.getBoolean("authorized");
-
-                            if (authorized) {
-                                int ezpayId = req.getInt("ezpayId");
-                            } else {
-                                String vehicleId = req.getString("vehicleId");
-                            }
-
-                            Date timestamp = (Date)req.get("timestamp");
-
-                            float toll = calculateToll();
-                            totalToll += toll;
-                            updateDB();
-
-                            // compose response
-                            req.put("toll", toll);
-                            sendToGate(req);
-                        } catch (JSONException ex) {
-                            ex.printStackTrace();
-                        }
-                    }
-                }
-            }
-        }.start();
-    }
-
-    // TODO
-    private float calculateToll() {
-        return 0.1f;
-    }
-
-    // TODO
-    private void updateDB() {
-
-    }
-
-    private void sendToGate(JSONObject resp) {
-        logger.trace("start sending to gate");
+    public void sendToGate(JSONObject resp) {
+        logger.trace("start sending to gate >>>>");
         try {
             if (broker == null) {
                 throw new ConnectException("No connection to broker");
             }
             broker.sendToGate(resp);
-            logger.trace("finish sending to gate");
+            logger.trace("finish sending to gate <<<<");
         } catch (ConnectException ex) {
             ex.printStackTrace();
         }
+    }
+
+    public void insertIntoTransTableModel(JSONObject transaction) {
+        transTableModel.insert(transaction);
+    }
+
+    // implementation
+    public void run() {
+        logger.info("server starts >>>>");
+        // request processor
+        requestProcessorThread.start();
     }
 }
