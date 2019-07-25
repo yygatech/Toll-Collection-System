@@ -1,6 +1,7 @@
 package gate.api;
 
 import gate.Gate;
+import org.json.JSONObject;
 
 public class SensorAPI {
 
@@ -12,5 +13,10 @@ public class SensorAPI {
 
     public Gate getGate() {
         return gate;
+    }
+
+    // TODO: real implementation
+    public void detect(JSONObject vehicle) {
+        gate.receiveFrSensor(vehicle);
     }
 }

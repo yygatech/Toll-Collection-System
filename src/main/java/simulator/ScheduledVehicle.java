@@ -1,7 +1,7 @@
 package simulator;
 
-import gate.Gate;
 import gate.Lane;
+import gate.api.SensorAPI;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONException;
@@ -26,13 +26,13 @@ public class ScheduledVehicle implements Runnable {
         try {
             Thread.sleep(lag);  // schedule pass by lag time
 
-            Gate gate = lane.getGate();
+            SensorAPI sensorAPI = lane.getGate().getSensorAPI();
             logger.trace("\n\n" + this + " passing");
             JSONObject sensorMsg = new JSONObject();
             try {
                 sensorMsg.put("laneId", lane.getLaneId());
                 sensorMsg.put("ezpayId", ezpayId);
-                gate.receiveFrSensor(sensorMsg);
+                sensorAPI.detect(sensorMsg);
             } catch (JSONException e) {
                 e.printStackTrace();
             }

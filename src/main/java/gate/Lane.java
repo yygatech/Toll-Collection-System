@@ -2,8 +2,8 @@ package gate;
 
 public class Lane {
 
-    int id = 0;
-    Gate gate;
+    private int id = 0;
+    private Gate gate;
 
     public Lane(int id, Gate gate) {
         this.id = id;

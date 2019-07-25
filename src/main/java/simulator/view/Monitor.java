@@ -40,10 +40,6 @@ public class Monitor extends JFrame {
         setVisible(true);
     }
 
-    public void setTransTableModel(TransTableModel model) {
-        transPanel.transScrollPane.transTable.setModel(model);
-    }
-
     public TransTableModel getTransTableModel() {
         logger.debug(">>>> getting transTableModel <<<<");
         TransTableModel model = (TransTableModel) transPanel.transScrollPane.transTable.getModel();
