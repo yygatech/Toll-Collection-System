@@ -1,10 +1,9 @@
 package simulator;
 
-import gate.Gate;
-import gate.Lane;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.Map;
 import java.util.Random;
 
 public class ScheduledVehicleFactory {
@@ -13,23 +12,26 @@ public class ScheduledVehicleFactory {
 
     private Random rand = new Random();
 
-    Gate[] gates;
+    Map<Integer, Sensor> sensors;
+    int nSensor;
     int session;
 
-    ScheduledVehicleFactory(Gate[] gates, int session) {
-        this.gates = gates;
+    ScheduledVehicleFactory(Map<Integer, Sensor> sensors, int session) {
+        this.sensors = sensors;
+        nSensor = sensors.size();
         this.session  = session;
     }
 
     ScheduledVehicle newScheduledVehicle(int sn) {
         logger.trace("schedule vehicle: " + sn);
 
-        // random lane
-        Lane[] lanes = gates[rand.nextInt(gates.length)].getLanes();
-        Lane randomLane = lanes[rand.nextInt(lanes.length)];
-        // random lag
-        int randomLag = rand.nextInt(session);
+        int ezpayId = -1;   // TODO: ezpayId generator
+        if (rand.nextInt() < 0.9) {
+            ezpayId = rand.nextInt(10);
+        }
+        int sensorId = rand.nextInt(nSensor)+1;
+        int lag = rand.nextInt(session);
 
-        return new ScheduledVehicle(RandomGenerator.generateEzpayId(), randomLane, randomLag);
+        return new ScheduledVehicle(ezpayId, sensors.get(sensorId), lag);
     }
 }

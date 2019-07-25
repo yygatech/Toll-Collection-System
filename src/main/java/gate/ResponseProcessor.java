@@ -14,16 +14,20 @@ public class ResponseProcessor extends Thread {
     private Gate gate;
     private BlockingQueue<JSONObject> respQueue;
 
-    public ResponseProcessor(String name, Gate gate) {
+    // status
+    private boolean running;
+
+    ResponseProcessor(String name, Gate gate) {
         super(name);
         this.gate = gate;
-        respQueue = gate.getRespQueue();
+        respQueue = gate.respQueue;
     }
 
     @Override
     public void run() {
         logger.info(this.getName() + " starts >>>>");
-        while (true) {
+        running = true;
+        while (running) {
             try {
                 synchronized (this) {
                     wait();
@@ -44,7 +48,11 @@ public class ResponseProcessor extends Thread {
             } catch (InterruptedException ex) {
                 ex.printStackTrace();
             }
-
         }
+        logger.info("<<<< " +  this.getName() + " stops <<<<");
+    }
+
+    public void shutdown() {
+        running = false;
     }
 }

@@ -6,7 +6,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import server.db.Repository;
 
-import java.net.ConnectException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Random;
@@ -20,20 +19,25 @@ public class RequestProcessor extends Thread {
     private Server server;
     private BlockingQueue<JSONObject> reqQueue;
 
+    // status
+    private boolean running = false;
 
     RequestProcessor(String name, Server server) {
         super(name);
         this.server = server;
-        reqQueue = server.getReqQueue();
+        reqQueue = server.reqQueue;
     }
 
     @Override
     public void run() {
         logger.info(this.getName() + " starts >>>>");
-        while (true) {
+        running = true;
+        while (running) {
             try {
                 synchronized (this) {
-                    this.wait();
+                    logger.trace(">>>> requestProcessor starts waiting>>>>");
+                    wait();
+                    logger.trace("<<<< requestProcessor end waiting <<<<");
                 }
                 if (!reqQueue.isEmpty()) {
                     JSONObject req = reqQueue.poll();
@@ -62,7 +66,8 @@ public class RequestProcessor extends Thread {
                         int gateId = req.getInt("gateId");
                         int laneId = req.getInt("laneId");
 
-                        server.insertIntoTransTableModel(req);
+                        server.insertIntoTransTableModel(req);  // TODO: use listener and trigger
+                        server.updateStatsTableModel();
 
                         Repository.updateDB(ts, authorized, ezpayId, vehicleId, gateId, gateType, laneId, toll);    // TODO: can be optimized
 
@@ -76,6 +81,7 @@ public class RequestProcessor extends Thread {
                 e.printStackTrace();
             }
         }
+        logger.info("<<<< " +  this.getName() + " stops <<<<");
     }
 
     private int calculateTollX100(JSONObject req) {
@@ -106,5 +112,9 @@ public class RequestProcessor extends Thread {
             return 0f;
         }
         return 0f;
+    }
+
+    public void shutdown() {
+        running = false;
     }
 }

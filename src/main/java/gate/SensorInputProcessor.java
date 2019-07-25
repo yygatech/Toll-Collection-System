@@ -5,7 +5,6 @@ import org.apache.logging.log4j.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.net.ConnectException;
 import java.util.Date;
 import java.util.concurrent.BlockingQueue;
 
@@ -16,16 +15,20 @@ public class SensorInputProcessor extends Thread {
     private Gate gate;
     private BlockingQueue<JSONObject> sensorInputQueue;
 
-    public SensorInputProcessor(String name, Gate gate) {
+    // status
+    private boolean running = false;
+
+    SensorInputProcessor(String name, Gate gate) {
         super(name);
         this.gate = gate;
-        sensorInputQueue = gate.getSensorInputQueue();
+        sensorInputQueue = gate.sensorInputQueue;
     }
 
     @Override
     public void run() {
         logger.info(this.getName() + " starts >>>>");
-        while (true) {
+        running = true;
+        while (running) {
             try {
                 synchronized (this) {
                     wait();
@@ -60,5 +63,10 @@ public class SensorInputProcessor extends Thread {
                 ex.printStackTrace();
             }
         }
+        logger.info("<<<< " +  this.getName() + " stops <<<<");
+    }
+
+    public void shutdown() {
+        running = false;
     }
 }

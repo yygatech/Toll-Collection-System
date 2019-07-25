@@ -1,90 +1,96 @@
 package simulator;
 
-import broker.Broker;
 import gate.Gate;
+import gate.SensorAPI;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
 import server.Server;
+import simulator.model.StatsTableModel;
+import simulator.model.TransTableModel;
+import simulator.view.Monitor;
 
-import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 
 public class Ezpay {
-
     private static final Logger logger = LogManager.getLogger("Ezpay");
-    private static final Level level = Level.TRACE;
-    private static final Properties prop = new Properties();
-    private static final Random rand = new Random();
 
-    // parameter properties
-    private int nGate = 3;
-    private int maxLanePerGate = 2;
+    private Random rand = new Random();
 
-    private int session = 5*1000;   // in millisecond
-    private int nSession = 2;
-    private int maxFlowPerSession = 10;
+    int nGate = 3;
+    int maxLanePerGate = 2;
 
+<<<<<<< HEAD
     private int warmup = 2000;      // in millisecond
-    private int cooldown = 2000;    // in millisecond
+    private int cooldown = 3000;    // in millisecond
+=======
+    int round = 4;
+    int session = 5*1000; // in millisecond
+    int maxFlowPerSession = 10;
+>>>>>>> parent of cc686aa... v0.2
 
-    // vehicle sequence number (not preset)
-    private int vehicleSN = 1;
+    int vehicleSN = 1;
 
     Ezpay() {
-        // set logger level
-        Configurator.setRootLevel(level);
-
-        // load properties
-        loadProperties();
-
-        // clean database
-        cleanDB();
-
-        // random generator
-        RandomGenerator.init(prop);
-
+        Configurator.setRootLevel(Level.INFO);
         // generate broker
         Broker broker = new Broker();
 
         // generate server
         Server server = new Server(1);
-        server.setnGate(nGate);
-        server.setBroker(broker);
+        server.connectBroker(broker);
         broker.registerServer(1, server);
 
-        // generate gates with lanes
+        // generate gates
         Gate[] gates = new Gate[nGate];
+        Map<Integer, Sensor> sensors = new HashMap<Integer, Sensor>();
+        int sensorGlobalId = 1;
         for (int i = 0; i < nGate; i++) {
             int gateId = i+1;
-            int nLane = rand.nextInt(maxLanePerGate)+1;                 // (random) number lanes at this gate
+            int nLane = rand.nextInt(maxLanePerGate)+1;
             Gate gate = new Gate(gateId, rand.nextInt(2) + 1, nLane);
             gates[i] = gate;
-            gate.setBroker(broker);
+            gate.connectBroker(broker);
             broker.registerGate(gateId, gate);
+
+            // generate sensors
+            SensorAPI sensorAPI = gate.getSensorAPI();
+            for (int j = 0; j < nLane; j++) {
+                int sensorLocalId = j+1;
+                Sensor sensor = new Sensor(sensorAPI, sensorLocalId, sensorGlobalId);
+                sensors.put(sensorGlobalId, sensor);
+                sensorGlobalId++;
+            }
         }
 
-        logger.info("Server: " + server);
-        logger.info("Gates: " + Arrays.toString(gates));
-        logger.info("Broker: " + broker);
+        System.out.println("server: " + server);
+        System.out.println("gates: " + Arrays.toString(gates));
+        System.out.println("broker: " + broker);
 
         // run simulator
         logger.info("start broker/server/gates >>>>");
 //        int count = 1 + 2 + gates.length;
 //        CountDownLatch latch = new CountDownLatch(count);
 
-        Thread brokerThread = new Thread(broker, "brkr");
+<<<<<<< HEAD
+        Thread brokerThread = new Thread(broker, "broker");
         brokerThread.start();
 
-        Thread serverThread = new Thread(server, "sr-"+server.getServerId());
+        Thread serverThread = new Thread(server, "server-"+server.getServerId());
         serverThread.start();
 
         Thread[] gateThreads = new Thread[gates.length];
         for (int i = 0; i < gates.length; i++) {
-            gateThreads[i] = new Thread(gates[i], "gt-"+gates[i].getGateId());
+            gateThreads[i] = new Thread(gates[i], "gate-"+gates[i].getGateId());
             gateThreads[i].start();
+=======
+        new Thread(broker, "brkr").start();
+        new Thread(server, "sr-"+server.getServerId()).start();
+        for (int i = 0; i < gates.length; i++) {
+            new Thread(gates[i], "gt-"+gates[i].getGateId()).start();
+>>>>>>> parent of cc686aa... v0.2
         }
 //        CountDownLatch latch = new CountDownLatch(count);
 //        try {
@@ -93,110 +99,65 @@ public class Ezpay {
 //            e.printStackTrace();
 //        }
 
+        // install model and view
+        logger.info(">>>> Start monitor >>>>");
+        Monitor monitor = new Monitor();
+        TransTableModel transTableModel = monitor.getTransTableModel();
+        StatsTableModel statsTableModel = monitor.getStatsTableModel();
+        server.setTransTableModel(transTableModel);
+        server.setStatsTableModel(statsTableModel);
+
         try {
-            Thread.sleep(warmup);                 // wait for broker/server/gates initialization
+            Thread.sleep(1000);             // wait for broker/server/gates initialization
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        logger.info(">>>> Complete warmup <<<<\n");
 
         // scheduled vehicle factory
-        ScheduledVehicleFactory factory = new ScheduledVehicleFactory(gates, session);
+        ScheduledVehicleFactory factory = new ScheduledVehicleFactory(sensors, session);
         ExecutorService es = Executors.newFixedThreadPool(maxFlowPerSession);
-        int r = 1;
-        while (r <= nSession) {
-            logger.info("\n\nRound: " + r);
+        int n = 1;
+        while (n++ < round) {
+            logger.info("\n\nround: " + (n-1));
             int nFlow = rand.nextInt(maxFlowPerSession)+1;
             for (int i = 0;  i < nFlow; i++) {
                 es.execute(factory.newScheduledVehicle(vehicleSN++));
             }
 
             try {
-                Thread.sleep(session);                  // let scheduled vehicles pass through
+                Thread.sleep(session);      // let scheduled vehicles pass through
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            r++;
         }
+<<<<<<< HEAD
 
+        // shut down vehicles/server/broker
         logger.info(">>>> Start cooldown: " + cooldown/1000 + "s >>>>\n");
         es.shutdown();
-
         try {
             Thread.sleep(cooldown);                 // wait for all transactions
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+        server.shutdown();
+        broker.shutdown();
+        for (Gate gate: gates) {
+            gate.shutdown();
+        }
         logger.info("<<<< Complete cooldown <<<<\n");
+=======
+        es.shutdown();
+
         showStats(gates, server);
+>>>>>>> parent of cc686aa... v0.2
 
-        System.exit(0);
+        showStats(gates, server);                   // log stats
     }
 
-    private void loadProperties() {
-        InputStream input = null;
-        try {
-            input = new FileInputStream("src/main/resources/config.properties");
-            prop.load(input);
-
-            nGate = Integer.parseInt(prop.getProperty("number.gate"));
-            logger.debug("nGate: " + nGate);
-
-            maxLanePerGate = Integer.parseInt(prop.getProperty("max.number.lane.per.gate"));
-            logger.debug("maxLanePerGate: " + maxLanePerGate);
-
-            session = Integer.parseInt(prop.getProperty("session"));
-            logger.debug("session: " + session);
-
-            nSession = Integer.parseInt(prop.getProperty("number.session"));
-            logger.debug("nSession: " + nSession);
-
-            maxFlowPerSession = Integer.parseInt(prop.getProperty("max.number.flow.per.session"));
-            logger.debug("maxFlowPerSession: " + maxFlowPerSession);
-
-            warmup = Integer.parseInt(prop.getProperty("warmup"));
-            logger.debug("warmup: " + warmup);
-
-            cooldown = Integer.parseInt(prop.getProperty("cooldown"));
-            logger.debug("cooldown: " + cooldown);
-
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        } finally {
-            if (input != null) {
-                try {
-                    input.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-    private void cleanDB() {
-        BufferedWriter out = null;
-        try {
-            File db = new File("src/main/resources/db.txt");
-            out = new BufferedWriter(new FileWriter(db));
-            String line = "timestamp authorization ezpay vehicle gate type lane toll";
-            out.write(line);
-            out.newLine();
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        } finally {
-            if (out != null) {
-                try {
-                    out.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-    private void showStats(Gate[] gates, Server server) {
+    void showStats(Gate[] gates, Server server) {
         // simulator stats
-        logger.info("Simulator: counter: " + (vehicleSN-1));
+        logger.info("Simulater:\ncounter: " + (vehicleSN-1));
 
         // gates stats
         int counterGates = 0;
@@ -205,10 +166,10 @@ public class Ezpay {
             counterGates += gate.getCounter();
             totalTollGates += gate.getTotalToll();
         }
-        logger.info("Gates: counter: " + counterGates + " totalToll: " + String.format("%.2f", totalTollGates));
+        logger.info("Gates:\ncounter: " + counterGates + " totalToll: " + totalTollGates);
 
         // server stats
-        logger.info("Server: counter: " + server.getCounter() + " totalToll: " + String.format("%.2f", server.getTotalToll()));
+        logger.info("Server:\ncounter: " + server.getCounter() + " totalToll: " + server.getTotalToll());
     }
 
     public static void main(String[] args) {

@@ -1,23 +1,20 @@
 package simulator;
 
 import gate.Gate;
-import gate.Lane;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 public class ScheduledVehicle implements Runnable {
 
     private static final Logger logger = LogManager.getLogger("ScheduledVehicle");
 
+    Sensor sensor;
     int ezpayId;
-    Lane lane;
     int lag;
 
-    ScheduledVehicle(int ezpayId, Lane lane, int lag) {
+    ScheduledVehicle(int ezpayId, Sensor sensor, int lag) {
         this.ezpayId = ezpayId;
-        this.lane = lane;
+        this.sensor = sensor;
         this.lag = lag;
     }
 
@@ -26,16 +23,9 @@ public class ScheduledVehicle implements Runnable {
         try {
             Thread.sleep(lag);  // schedule pass by lag time
 
-            Gate gate = lane.getGate();
-            logger.trace("\n\n" + this + " passing");
-            JSONObject sensorMsg = new JSONObject();
-            try {
-                sensorMsg.put("laneId", lane.getLaneId());
-                sensorMsg.put("ezpayId", ezpayId);
-                gate.receiveFrSensor(sensorMsg);
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
+            Gate gate = sensor.getAPI().getGate();
+            logger.trace("\n\n" + this + " passes gate-" + gate.getGateId());
+            gate.receiveFrSensor(ezpayId);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -43,6 +33,6 @@ public class ScheduledVehicle implements Runnable {
 
     @Override
     public String toString() {
-        return "(ezpayId-" + ezpayId + ", gateId-" + lane.getGateId() + ", laneId-" + lane.getLaneId() + ", lag-" + lag + ")";
+        return "(sensorId: " + sensor.getGlobalId() + ", ezpayId: " + ezpayId + ", lag: " + lag + ")";
     }
 }
