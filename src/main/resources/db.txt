@@ -1,1 +1,0 @@
-timestamp authorization ezpay vehicle gate type lane toll

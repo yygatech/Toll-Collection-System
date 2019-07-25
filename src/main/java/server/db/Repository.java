@@ -9,7 +9,7 @@ import java.io.IOException;
 
 public class Repository {
 
-    private static File db = new File("src/main/resources/db.txt");
+    private static File db = new File("db.txt");
 
     static BufferedWriter out = null;
 
