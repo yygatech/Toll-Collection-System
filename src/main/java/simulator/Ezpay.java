@@ -151,7 +151,8 @@ public class Ezpay {
     private void loadProperties() {
         InputStream input = null;
         try {
-            input = new FileInputStream("src/main/resources/config.properties");
+            ClassLoader cl = this.getClass().getClassLoader();
+            input = cl.getResourceAsStream("config.properties");
             prop.load(input);
 
             nGate = Integer.parseInt(prop.getProperty("number.gate"));
@@ -191,7 +192,7 @@ public class Ezpay {
     private void cleanDB() {
         BufferedWriter out = null;
         try {
-            File db = new File("src/main/resources/db.txt");
+            File db = new File("db.txt");
             out = new BufferedWriter(new FileWriter(db));
             String line = "timestamp authorization ezpay vehicle gate type lane toll";
             out.write(line);
