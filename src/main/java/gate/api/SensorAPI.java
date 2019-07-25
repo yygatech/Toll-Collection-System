@@ -1,10 +1,12 @@
-package gate;
+package gate.api;
+
+import gate.Gate;
 
 public class SensorAPI {
 
-    Gate gate;
+    private Gate gate;
 
-    SensorAPI(Gate gate) {
+    public SensorAPI(Gate gate) {
         this.gate = gate;
     }
 

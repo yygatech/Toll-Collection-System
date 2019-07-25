@@ -4,28 +4,25 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONException;
 import org.json.JSONObject;
-<<<<<<< HEAD
 import broker.Broker;
 import simulator.model.StatsTableModel;
 import simulator.model.TransTableModel;
-=======
-import simulator.Broker;
->>>>>>> parent of cc686aa... v0.2
 
 import java.net.ConnectException;
-import java.util.Date;
+import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class Server implements Runnable {
     private static final Logger logger = LogManager.getLogger("Server");
+    private static final Random rand = new Random();
 
-    int id = 0;
+    private int id = 0;
+    private int nGate = 0;
 
-    int counter = 0;
-    float totalToll = 0;
+    private int counter = 0;
+    private float totalToll = 0;
 
-<<<<<<< HEAD
     //    final TransactionsCache transactions = new TransactionsCache(100, this);
 
     BlockingQueue<JSONObject> reqQueue = new LinkedBlockingQueue<JSONObject>();
@@ -34,26 +31,26 @@ public class Server implements Runnable {
     private Broker broker;
     private TransTableModel transTableModel;
     private StatsTableModel statsTableModel;
-=======
-    Broker broker;
-
-    BlockingQueue<JSONObject> frGate = new LinkedBlockingQueue<JSONObject>();
->>>>>>> parent of cc686aa... v0.2
 
     public Server(int id) {
         this.id = id;
         requestProcessorThread = new RequestProcessor("server-request-processor", this);
     }
 
-<<<<<<< HEAD
 //    public TransactionsCache getTransactions() {
 //        return transactions;
 //    }
 
-=======
->>>>>>> parent of cc686aa... v0.2
     public int getServerId() {
         return id;
+    }
+
+    public int getnGate() {
+        return nGate;
+    }
+
+    public void setnGate(int nGate) {
+        this.nGate = nGate;
     }
 
     public int getCounter() {
@@ -66,74 +63,31 @@ public class Server implements Runnable {
         return totalToll;
     }
 
-    @Override
-    public String toString() {
-        return "(" + id + ")";
+    public synchronized void addToTotalToll(float toll) {
+        totalToll += toll;
     }
 
-    public void connectBroker(Broker broker) {
+    public void setBroker(Broker broker) {
         this.broker = broker;
     }
 
-    public void receiveFrGate(JSONObject msg) {
-        frGate.offer(msg);
-        counter++;
+    public Broker getBroker() {
+        return broker;
     }
 
-<<<<<<< HEAD
     public void setTransTableModel(TransTableModel transTableModel) {
         this.transTableModel = transTableModel;
     }
 
     public void setStatsTableModel(StatsTableModel statsTableModel) {
         this.statsTableModel = statsTableModel;
-=======
-    // implementation
-    public void run() {
-        logger.info("server starts >>>>");
-        new Thread("server-processor") {
-            @Override
-            public void run() {
-                logger.info("server-processor starts >>>>");
-                while (true) {
-                    if (!frGate.isEmpty()) {
-                        JSONObject req = frGate.poll();
-                        logger.trace("frGate poll: " + req);
-                        try {
-                            int gateId = req.getInt("gateId");
-                            boolean authorized = req.getBoolean("authorized");
-
-                            if (authorized) {
-                                int ezpayId = req.getInt("ezpayId");
-                            } else {
-                                String vehicleId = req.getString("vehicleId");
-                            }
-
-                            Date timestamp = (Date)req.get("timestamp");
-
-                            float toll = calculateToll();
-                            totalToll += toll;
-                            updateDB();
-
-                            // compose response
-                            req.put("toll", toll);
-                            sendToGate(req);
-                        } catch (JSONException ex) {
-                            ex.printStackTrace();
-                        }
-                    }
-                }
-            }
-        }.start();
->>>>>>> parent of cc686aa... v0.2
     }
 
-    // TODO
-    private float calculateToll() {
-        return 0.1f;
+    @Override
+    public String toString() {
+        return "(" + id + ")";
     }
 
-<<<<<<< HEAD
     public void receiveFrGate(JSONObject msg) {
         logger.trace(">>>> start offering to reqQueue >>>>");
         reqQueue.offer(msg);
@@ -142,26 +96,20 @@ public class Server implements Runnable {
         }
         incrementCounter();
         logger.trace("<<<< finish offering to reqQueue <<<<");
-=======
-    // TODO
-    private void updateDB() {
-
->>>>>>> parent of cc686aa... v0.2
     }
 
-    private void sendToGate(JSONObject resp) {
-        logger.trace("start sending to gate");
+    public void sendToGate(JSONObject resp) {
+        logger.trace("start sending to gate >>>>");
         try {
             if (broker == null) {
                 throw new ConnectException("No connection to broker");
             }
             broker.sendToGate(resp);
-            logger.trace("finish sending to gate");
+            logger.trace("finish sending to gate <<<<");
         } catch (ConnectException ex) {
             ex.printStackTrace();
         }
     }
-<<<<<<< HEAD
 
     public void insertIntoTransTableModel(JSONObject transaction) {
         if (transTableModel != null) {
@@ -200,6 +148,4 @@ public class Server implements Runnable {
         }
         logger.info("<<<< server shutdown <<<<");
     }
-=======
->>>>>>> parent of cc686aa... v0.2
 }

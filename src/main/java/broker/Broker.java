@@ -1,4 +1,4 @@
-package simulator;
+package broker;
 
 import gate.Gate;
 import org.apache.logging.log4j.LogManager;
@@ -24,9 +24,6 @@ public class Broker implements Runnable {
     private Gate2ServerProcessor gate2ServerProcessorThread = new Gate2ServerProcessor("broker-gate2Server-processor", this);
     private Server2GateProcessor server2GateProcessorThread = new Server2GateProcessor("broker-server2Gate-processor", this);
 
-    Broker() {
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -38,11 +35,11 @@ public class Broker implements Runnable {
         return sb.toString();
     }
 
-    void registerServer(int serverId, Server server) {
+    public void registerServer(int serverId, Server server) {
         servers.put(serverId, server);
     }
 
-    void registerGate(int gateId, Gate gate) {
+    public void registerGate(int gateId, Gate gate) {
         gates.put(gateId, gate);
     }
 
